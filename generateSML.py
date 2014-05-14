@@ -1,6 +1,10 @@
-import os.path
 import sys
 from subprocess import call
+from measure import measure
+from file_util import deleteFile, writeToFile
+
+def x(i):
+    return "x" + str(i)
 
 # haha this code is kind of terrible
 def buildPathological(depth):
@@ -15,12 +19,12 @@ val wat = fn _ =>
     d0 = d1 - 1
     while (d1 <= depth):
         ret = ret + ('   ' * (d1 + 1))
-        ret = ret + 'let val x' + str(d1) + ' = (fn y => x' + str(d0) + '(x' + str(d0) + '(y))) in\n'
+        ret = ret + 'let val ' + x(d1) + ' = (fn y => ' + x(d0) + '(' + x(d0) + '(' + x(d0) + '(y)))) in\n'
         d1 = d1 + 1
         d0 = d1 - 1
 
     # print the inner let's body
-    ret = ret + ('   ' * (depth + 2)) + 'x' + str(depth) + '\n'
+    ret = ret + ('   ' * (depth + 2)) + x(depth) + '\n'
 
     # print the bottom part of the nesting
     d = depth
@@ -34,33 +38,28 @@ end"""
 
     return ret
 
-# delete a file if it exists
-def deleteFile(filename):
-    if os.path.isfile(filename):
-        call(["rm", filename])
-
-def writeToFile(filename, s):
-    with open(filename, 'a') as f:
-        f.write(s)
-        f.write('\n')
-
-# time compilation of 'pathological.cm' via SML/NJ
-# write output of time to file with depth
-def timeSmlNj(depth):
-    filename = 'microbenchmarks.smlnj'
-    with open(filename, 'a') as f:
-        f.write('(' + str(depth) + ') ')
-    call(["/usr/bin/time", "-o", filename, "-a", "-f", "%e %U %S", "ml-build", "pathological.cm", "P.main"])
-
 def main():
     filename="pathological.sml"
     depth=int(sys.argv[1])
 
+    deleteFile("microbench.smlnj")
+
     d=1
     while (d <= depth):
+        # clean up after previous loop iteration
         deleteFile(filename)
-        writeToFile(filename, buildPathological(d))
-        timeSmlNj(d)
+        deleteFile("pathological.x86-linux")
+
+        # build up pathological case
+        src = buildPathological(d)
+        print(src)
+        writeToFile(filename, src)
+
+        # time compilation of 'pathological.cm' via SML/NJ
+        # write output of time to file with depth
+        measure(str(depth), "microbench.smlnj",
+                ["ml-build", "pathological.cm", "P.main"])
+
         d = d + 1
 
 if __name__ == "__main__":
