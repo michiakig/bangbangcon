@@ -1,0 +1,4 @@
+Group
+    structure P
+is
+    pathological.sml
