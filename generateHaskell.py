@@ -1,6 +1,6 @@
-import os.path
 import sys
-from subprocess import call
+from file_util import deleteFile
+from microbench import microbench
 
 def x(i):
     return "x" + str(i)
@@ -22,32 +22,19 @@ wat  = \\_ -> let x0 = (\\x -> \\y -> \\z -> z x y)
 
     return ret
 
-# delete a file if it exists
-def deleteFile(filename):
-    if os.path.isfile(filename):
-        call(["rm", filename])
-
-def writeToFile(filename, s):
-    with open(filename, 'a') as f:
-        f.write(s)
-        f.write('\n')
-
-# time compilation of 'pathological.hs' via GHC
-def timeGhc():
-    call(["/usr/bin/time", "-f", "%e %U %S", "ghc", "pathological.hs"])
-
-def main():
-    filename="pathological.hs"
-    depth=int(sys.argv[1])
-
-    d=1
-    while (d <= depth):
-        deleteFile(filename)
-        src = buildPathological(d)
-        print(src)
-        d = d + 1
-        writeToFile(filename, src)
-        timeGhc()
-
 if __name__ == "__main__":
-    main()
+    filename = "pathological.hs"
+    depth = int(sys.argv[1])
+
+    def cleanup():
+        deleteFile(filename)
+        deleteFile("pathological.hi")
+        deleteFile("pathological.o")
+        deleteFile("pathological")
+
+    microbench("pathological.hs",
+               "microbench.ghc",
+               depth,
+               cleanup,
+               buildPathological,
+               ["ghc", "pathological.hs"])

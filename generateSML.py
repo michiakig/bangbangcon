@@ -1,7 +1,6 @@
 import sys
-from subprocess import call
-from measure import measure
-from file_util import deleteFile, writeToFile
+from file_util import deleteFile
+from microbench import microbench
 
 def x(i):
     return "x" + str(i)
@@ -38,29 +37,17 @@ end"""
 
     return ret
 
-def main():
-    filename="pathological.sml"
-    depth=int(sys.argv[1])
+if __name__ == "__main__":
+    filename = "pathological.sml"
+    depth = int(sys.argv[1])
 
-    deleteFile("microbench.smlnj")
-
-    d=1
-    while (d <= depth):
-        # clean up after previous loop iteration
+    def cleanup():
         deleteFile(filename)
         deleteFile("pathological.x86-linux")
 
-        # build up pathological case
-        src = buildPathological(d)
-        print(src)
-        writeToFile(filename, src)
-
-        # time compilation of 'pathological.cm' via SML/NJ
-        # write output of time to file with depth
-        measure(str(depth), "microbench.smlnj",
-                ["ml-build", "pathological.cm", "P.main"])
-
-        d = d + 1
-
-if __name__ == "__main__":
-    main()
+    microbench("pathological.sml",
+               "microbench.smlnj",
+               depth,
+               cleanup,
+               buildPathological,
+               ["ml-build", "pathological.cm", "P.main"])
