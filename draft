@@ -1,0 +1,121 @@
+Just LOOK at the humongous type that Hindley-Milner infers for this tiny program!
+
+what are static types
+
+guarantees that can be made about a program without running it
+
+for example:
+
+- this function can be applied to integers
+- this variable is a string
+
+what is type inference?
+
+static types can come in two (many) flavors: explicit type annotations
+(Java, C++, C# ...) and inferred types (Scala, OCaml, Haskell...)
+
+crown jewel of static type systems: Hindley-Milner (or if you're some
+kind of type inference hipster, maybe Damas-Milner, or maybe
+Hindley-Damas-Milner)
+
+programmer writes code without mentioning types. some or even all type
+annotations omitted from source code, but the programming language is
+still statically typed! compiler deduces the types at compile-time,
+checks that they are used correctly. raises warnings and errors when
+they are not. TURNS OUT THIS IS NOT MAGIC
+
+typed lambda calculus
+
+variables
+functions
+application
+...numbers, booleans, tuples
+let
+
+let-polymorphism
+
+coming from Lisp, I always thought let was just syntactic sugar, since
+it can be written as a trivial macro transforming it into a lambda and
+an application
+
+#+BEGIN_SRC sml
+  val y = 
+      let
+         val x = 3
+      in
+         x + x
+      end
+  
+  (* transformed into: *)
+  
+  val y =
+   (fn x => x + x) 3
+#+END_SRC
+
+#+RESULTS:
+: val y = <hidden-value> : int
+: val y = 6 : int
+
+but, in fact in ML there's some interesting semantic differences
+
+#+BEGIN_SRC sml
+  val _ = (fn id => (id 3, id true)) (fn x => x)
+#+END_SRC
+
+#+RESULTS:
+: stdIn:27.19-27.34 Error: operator and operand don't agree [literal]
+:   operator domain: int
+:   operand:         bool
+:   in expression:
+
+#+BEGIN_SRC sml
+  let
+      val id = fn x => x
+  in
+      (id 3, id true)
+  end
+#+END_SRC
+
+#+RESULTS:
+: val it = (3,true) : int * bool
+
+functions that could otherwise be polymorphic (like id) will sort of
+"degrade" into monomorphic types when they're passed as arguments to
+functions
+
+alternatively: let-bound values are *allowed* to be polymorphic
+
+type checking an explicitly type programming language
+
+it's quite easy to see that type checking a program written in a
+langauge with explicit types is linear in the size of the
+program. since each variable is annotated with a type by the
+programmer, the type checker just has to walk (a linear-time
+operation) the abstract syntax tree and validate the use of types was
+correct. variables are bound in a type environment, mapping variables
+in the program into types. at each node in the tree, either add new
+bindings into the environment, or check operations: mostly just
+function application in the typed lambda calculus
+
+type inference without let
+
+Hindley-Milner type inference works by generating a set of constraints
+based on the program, and then solving those constraints.
+
+a constraint is just an equation involving programing elements: on one
+side of the equation is variables and expressions and on the other
+side is types
+
+solving those constraints is done by unification. same algorithm at
+the heart of prolog, naive pattern matching, many other
+instances. take constraints one at a time and build up a substitution:
+mapping from type variables to types. if ever encounter a mismatch,
+i.e. already in the substition is a mapping to one type but you
+encounter a constraint that contradicts it, raise a type error.
+
+constraint generation is linear
+unification is linear
+
+so why is HM exponential in the worst case?
+
+type inference with let

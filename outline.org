@@ -1,0 +1,272 @@
+* Just LOOK at the humongous type that Hindley-Milner infers for this tiny program!
+
+** intro
+
+can interpret "ML" and "in ML", to apply (for the most part?) to
+Haskell as well as all the MLs (Standard ML, OCaml, F#, etc.) and
+other langauges that uses Hindley-Milner. does NOT include Scala!
+
+Ok, let's talk about type inference!
+
+** static types & type inference
+
+*** types
+
+"A type system is a tractable syntactic method for proving the absence of certain program behaviors by classifying phrases according to the kinds of values they compute."
+
+Types and Programming Languages, Benjamin Pierce
+
+"tractable syntactic method"
+
+*** type inference
+
+Type inference is a method of deducing the types of expressions in a
+program without requiring the programmer to annotate source code
+explicitly. The main selling point is that you get the expressiveness
+of a dynamically typed programming language like Python, but the
+compiler still does static type checking that prevents certain kinds
+of errors from occuring at runtime.
+
+Hindley-Milner is a classic algorithm for inferring types in
+programming languages based on the lambda calculus.
+
+** just LOOK at this type
+
+Here's a cute little ML program:
+
+(from Mairson)
+#+BEGIN_SRC sml pathological1
+  fn _ =>
+     let val x1 = (fn y => fn z => z y y)
+     in let val x2 = (fn y => x1(x1(y)))
+        in let val x3 = (fn y => x2(x2(y)))
+           in let val x4 = (fn y => x3(x3(y)))
+              in
+                 x4
+              end
+           end
+        end
+     end
+#+END_SRC
+
+(from Rossberg)
+#+BEGIN_SRC sml pathological2
+  fun f x y z = (x, y, z)
+  val wat =
+   fn _ =>
+      let val p1 = (f, f, f)
+      in let val p2 = (p1, p1, p1)
+         in let val p3 = (p2, p2, p2)
+            in let val p4 = (p3, p3, p3)
+               in let val p5 = (p4, p4, p4)
+                  in p5
+                  end
+               end
+            end
+         end
+      end
+#+END_SRC
+
+(same as Rossberg's, but with pairs)
+#+BEGIN_SRC sml pathological3
+  fun f x y = (x, y)
+  val wat =
+   fn _ =>
+      let val p1 = (f, f)
+      in let val p2 = (p1, p1)
+         in let val p3 = (p2, p2)
+            in let val p4 = (p3, p3)
+               in let val p5 = (p4, p4)
+                  in p5
+                  end
+               end
+            end
+         end
+      end
+#+END_SRC
+
+If you don't know ML, this might look daunting but it's not that
+complicated. The first line defines a function `f` that takes three
+arguments and constructs a triple out of them, a tuple of three
+elements. The rest of the program just stores that function in a new
+triple, then nests that inside another triple, etc. It's really only
+nested 4 levels deep, and yet... here's the type of the final value:
+
+#+BEGIN_SRC sml
+(* ... *)
+#+END_SRC
+
+Haha I mean, just LOOK at it !!
+
+When I first saw this [ref: stack overflow] I was blown a way little
+bit. I'm not an ML wizard, but I've written some small and medium
+sized things in it and that's just not a complicated program. It looks
+so simple but the type is really anything but.
+
+The fact that the type is exponential in the size of the program (more
+on that later) is just so interesting to me, because you see
+exponential algorithms so rarely. If you write an exponential solution
+to some interview question and try to pass it off as ok they'll throw
+you out, right? Because noone uses exponential algorithms in real
+life. So what's going on here, why is type inference so slow? Is it
+really slow? I had a serious "WHAT is going on" moment.
+
+** how does type inference work?
+
+Let's take a step back and talk about how (HM) type inference works.
+
+*** phases of a compiler
+
+Briefly, recall that compilers are often broken up into different phases:
+
+lexical analysis -> parsing -> semantic analysis -> translation into IR -> optimization -> code generation
+
+semantic analysis: type checking, type inference
+
+*** type inference
+
+You can think of the type inference phase of an ML compiler as a
+function that takes an abstract syntax tree that has no type
+annotations, and returns a tree that is fully annotated with types.
+
+Here's a very simple ML program:
+
+#+BEGIN_SRC sml (FizzBuzz)
+
+#+END_SRC
+
+Here it is annotated with types:
+
+#+BEGIN_SRC sml (FizzBuzzTyped)
+
+#+END_SRC
+
+Type inference works by first generating a set of constraints and then
+solving those constraints.
+
+A constraint is an equation involving programing elements: on one
+side of the equation is variables and expressions and on the other
+side is types. For instance:
+
+(example from FizzBuzz?)
+
+Solving these constraints is done with unification, which is the same
+algorithm at the heart of Prolog, also naive pattern matching, and a
+few other places. There's more to it than this but briefly: take
+constraints one at a time and build up a substitution (a mapping from
+type variables to types). If you ever encounter a mismatch,
+i.e. already in the substition is a mapping to one type but you
+encounter a constraint that contradicts it, raise a type error.
+
+so why is HM exponential in the worst case?
+
+** let-polymorphism
+
+ML has a construct for binding local variables called "let". This is
+should be familar to Lisp (and now JavaScript) programmers, it's just
+a way of assigning values to names that are scoped to a specific
+block:
+
+#+BEGIN_SRC sml let
+  let
+     val x = 1
+     val y = 2
+     fun square z = z * z
+  in
+     square x + y
+  end
+#+END_SRC
+
+Coming from a Lisp background, I always thought of let as just
+syntactic sugar, since it can be written as a trivial macro
+transforming it into a lambda and an application (JavaScript
+programmers call this pattern "Immediately Invoked Function
+Expression", or IIFEs).
+
+#+BEGIN_SRC sml
+  val y = 
+      let
+         val x = 3
+      in
+         x + x
+      end
+  
+  (* transformed into: *)
+  
+  val y =
+   (fn x => x + x) 3
+#+END_SRC
+
+(in JavaScript?)
+
+But it turns out that in ML there is a really subtle semantic
+difference between these two kinds of bindings (TODO: introduce
+let-bound and lambda-bound). ML's type system implements something
+called "let-polymorphism" which boils down to this: let-bound
+variables may have a polymorphic type, while lambda-bound variables
+may not (TODO: ???).
+
+#+BEGIN_SRC sml
+  val _ = (fn id => (id 3, id true)) (fn x => x)
+#+END_SRC
+
+#+RESULTS:
+: stdIn:27.19-27.34 Error: operator and operand don't agree [literal]
+:   operator domain: int
+:   operand:         bool
+:   in expression:
+
+In the first example it's inferred to be int -> int after the first
+part of the pair is encountered by the type checker, and the second
+part of the pair results in a type checking error.
+
+#+BEGIN_SRC sml
+  let
+      val id = fn x => x
+  in
+      (id 3, id true)
+  end
+#+END_SRC
+
+#+RESULTS:
+: val it = (3,true) : int * bool
+
+In the second example, the type of `id` is `'a -> 'a`, and when the
+type checker encounters `id 3` it says, ok you're applying a function
+with type `'a -> 'a` to `3`, that's cool the result is going to be the
+same type as `3`. When it sees `id true` is does something similar,
+and the first part of the pair doesn't influence the type checking of
+the second (???).
+
+The way you implement this, in the naive case, is LITERALLY by copying code around. The compiler will transform the syntax tree with a single instance of the `id` function into a new tree with two instances, for the two different applications. The result is something like:
+
+#+BEGIN_SRC sml
+  let
+      val id1 = fn x => x
+      val id2 = fn x => x
+  in
+      (id1 3, id2 true)
+  end
+#+END_SRC
+
+This is crazy, right? I mean it's actually copying and pasting code
+around so that you don't have to.
+
+** pathological case
+
+The fact that the compiler is copying and pasting code might be a bit
+of a red flag if you're following along from our program with the
+monstrous type from earlier. All that nesting is doing is forcing the
+compiler to copy and paste, copy and paste, copy and paste, and at
+each nesting depth the amount of code copied and pasted doubles (or
+triples). If this sounds like exponential growth, that's because it
+is!
+
+** fast enough in practice
+
+One of the things that is so interesting about this is that the very
+reason this exponential behavior occurs is because ML is so
+concise. Parametric polymorphism is primarily a mechanism for reusing
+code. It allows the programmer to write code that is very general, yet 
+
+** closing, references, etc.
