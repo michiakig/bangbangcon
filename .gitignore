@@ -7,3 +7,6 @@
 *.o
 
 *.pyc
+
+microbench.*
+*-export.*
